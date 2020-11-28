@@ -58,7 +58,34 @@ void setup() {
 }
 
 void loop() {
+  
+
+  // Get temperature and humidity readings from HTS221 sensor
+  sensors_event_t HTS_temp;
+  sensors_event_t HTS_humidity;
+  hts.getEvent(&HTS_humidity, &HTS_temp);
+
+  // Get soil moisture from soil sensor
+  float ssTempC = ss.getTemp();
+  uint16_t ssMoist = ss.touchRead(0);
+  
+  // Get light reading in Lux from BH1750 sensor
+  BH1750.start();
+  float lux = BH1750.getLux();
+
+  // Print datetime
+  Serial.print(rtc.getDateStr(FORMAT_LONG,FORMAT_MIDDLEENDIAN,'/'));
+  Serial.print(" ");
   Serial.println(rtc.getTimeStr());
+  
+  // Print sensor readings
+  Serial.print("HTS221 temp: "); Serial.println(HTS_temp.temperature);
+  Serial.print("HTS221 hum: "); Serial.println(HTS_humidity.relative_humidity);
+  Serial.print("SS temp: "); Serial.println(ssTempC);
+  Serial.print("SS moist: "); Serial.println(ssMoist);
+  Serial.print("BH1750 Lux: "); Serial.println(lux);
+
+  delay(500);
 }
 
 // Takes a boolean input and returns the string of what it is
