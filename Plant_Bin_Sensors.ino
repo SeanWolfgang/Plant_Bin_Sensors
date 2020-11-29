@@ -16,6 +16,9 @@
 // SD Library
 #include "SdFat.h"
 
+// Include the liquid crystal library
+#include <LiquidCrystal.h>
+
 // Declaring class variables for sensors
 Adafruit_HTS221 hts;    // Temperature humidity
 Adafruit_seesaw ss;     // Soil
@@ -29,6 +32,12 @@ DS3231  rtc(SDA,SCL);
 String SDFileName;
 SdFat SD;
 
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+const int rs = 6, en = 7, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
+
 // Define loop delay in milliseconds
 int loopDelay = 5000;
 
@@ -36,6 +45,10 @@ void setup() {
   // Start serial monitor at 9600
   Serial.begin(9600);
 
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  lcd.print("Initializing...");
+  
   // Declar built in LED as output
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -64,17 +77,33 @@ void setup() {
 
     // Stick in infinite loop and blink LED to notify failure
     while(1) {
-      blinkWithDelay(250);
+      lcd.clear();
+      lcd.print("Init failed.");
     }
   }
-  
-  // Long blink twice to indicate successful initialization
-  blinkWithDelay(1000);
-  blinkWithDelay(1000);
+
+  // If initialization succeeded, say so on LCD
+  lcd.clear();
+  lcd.print("Init OK.");
+
+  delay(1000);
 }
 
 void loop() {
+  // Get light reading in Lux from BH1750 sensor
+  BH1750.start();
+  float lux = BH1750.getLux();
+  
+  lcd.clear();
+  lcd.print("Lux: " + String(lux));
+
+  // (note: line 1 is the second row, since counting begins with 0):
+  lcd.setCursor(0, 1);
+  // print the number of seconds since reset:
+  lcd.print(upTime());
+  
   logSensorData();
+  
   delay(loopDelay);
 }
 
@@ -127,6 +156,8 @@ void initializeSD(int pinSD) {
 
   if (!SD.begin(pinSD)) {
     // Serial.println("initialization failed!");
+    lcd.clear();
+    lcd.print("Wait SD...");
     blinkWithDelay(1000);
     delay(5000);
     initializeSD(SD_PIN);
@@ -174,12 +205,6 @@ void logHeader() {
 }
 
 void logSensorData() {
-  // Using local file variable to log to
-  File logFile;
-
-  // Open log file with formatted file name assigned in assignFileName
-  logFile = SD.open(SDFileName, FILE_WRITE);
-
   // Log sensor data for each data entry
   // Get temperature and humidity readings from HTS221 sensor
   sensors_event_t HTS_temp;
@@ -193,11 +218,21 @@ void logSensorData() {
   // Get light reading in Lux from BH1750 sensor
   BH1750.start();
   float lux = BH1750.getLux();
+
+  String dateTimeStamp;
   
+  dateTimeStamp.concat(rtc.getDateStr(FORMAT_LONG,FORMAT_MIDDLEENDIAN,'/'));
+  dateTimeStamp.concat(" ");
+  dateTimeStamp.concat(rtc.getTimeStr());
+  
+  // Using local file variable to log to
+  File logFile;
+
+  // Open log file with formatted file name assigned in assignFileName
+  logFile = SD.open(SDFileName, FILE_WRITE);
+
   // Print datetime
-  logFile.print(rtc.getDateStr(FORMAT_LONG,FORMAT_MIDDLEENDIAN,'/'));
-  logFile.print(" ");
-  logFile.print(rtc.getTimeStr());
+  logFile.print(dateTimeStamp);
   logFile.print("\t");
   
   // Print sensor readings
@@ -220,4 +255,18 @@ void logSensorData() {
 float calcVPD(float temp, float hum) {
   // Calculation from: https://betterorganix.com/blog/what-is-how-to-calculate-vapour-pressure-deficit/#:~:text=To%20Get%20VPD%2C%20we%20need,And%20VOILA%2C%20you%20have%20VPD.
   return ((610.7 * pow(10, (7.5 * temp) / (237.3 + temp))) / 1000) * (hum / 100);
+}
+
+String upTime() {
+  unsigned long upMillis = millis();
+
+  char outChars[22];
+  
+  int hours = upMillis / 3600000;
+  int minutes = (upMillis / 60000) % 60;
+  int seconds = (upMillis / 1000) % 60;
+
+  sprintf(outChars, "%d:%02d:%02d", hours, minutes, seconds);
+
+  return (String(outChars));
 }
