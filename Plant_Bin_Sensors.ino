@@ -34,9 +34,22 @@ SdFat SD;
 
 // initialize the library by associating any needed LCD interface pin
 // with the arduino pin number it is connected to
-const int rs = 6, en = 7, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+//const int rs = 6, en = 7, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+//LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
+// Sensor data struct to store all readings in a central place
+struct sensorData {
+  String timestamp;
+  float HTS221_temp;
+  float HTS221_humid;
+  float soil_temp;
+  float soil_humid;
+  float BH1750_light;
+  float VPD;
+};
+
+typedef struct sensorData SensorData;
+SensorData plantSensorData;
 
 // Define loop delay in milliseconds
 int loopDelay = 5000;
@@ -46,8 +59,8 @@ void setup() {
   Serial.begin(9600);
 
   // set up the LCD's number of columns and rows:
-  lcd.begin(16, 2);
-  lcd.print("Initializing...");
+  //lcd.begin(16, 2);
+  //lcd.print("Initializing...");
   
   // Declar built in LED as output
   pinMode(LED_BUILTIN, OUTPUT);
@@ -77,30 +90,30 @@ void setup() {
 
     // Stick in infinite loop and blink LED to notify failure
     while(1) {
-      lcd.clear();
-      lcd.print("Init failed.");
+      //lcd.clear();
+      //lcd.print("Init failed.");
     }
   }
 
   // If initialization succeeded, say so on LCD
-  lcd.clear();
-  lcd.print("Init OK.");
+  //lcd.clear();
+  //lcd.print("Init OK.");
 
   delay(1000);
 }
 
 void loop() {
   // Get light reading in Lux from BH1750 sensor
-  BH1750.start();
-  float lux = BH1750.getLux();
+  //BH1750.start();
+  //float lux = BH1750.getLux();
   
-  lcd.clear();
-  lcd.print("Lux: " + String(lux));
+  //lcd.clear();
+  //lcd.print("Lux: " + String(lux));
 
   // (note: line 1 is the second row, since counting begins with 0):
-  lcd.setCursor(0, 1);
+  //lcd.setCursor(0, 1);
   // print the number of seconds since reset:
-  lcd.print(upTime());
+  //lcd.print(upTime());
   
   logSensorData();
   
@@ -125,30 +138,20 @@ void blinkWithDelay(int millisecondDelay) {
 }
 
 void serialPrintSensors() {
-  // Get temperature and humidity readings from HTS221 sensor
-  sensors_event_t HTS_temp;
-  sensors_event_t HTS_humidity;
-  hts.getEvent(&HTS_humidity, &HTS_temp);
-
-  // Get soil moisture from soil sensor
-  float ssTempC = ss.getTemp();
-  uint16_t ssMoist = ss.touchRead(0);
-  
-  // Get light reading in Lux from BH1750 sensor
-  BH1750.start();
-  float lux = BH1750.getLux();
+  // Log sensor data for each data entry
+  populateSensorData();
   
   // Print datetime
-  Serial.print(rtc.getDateStr(FORMAT_LONG,FORMAT_MIDDLEENDIAN,'/'));
-  Serial.print(" ");
-  Serial.println(rtc.getTimeStr());
+  Serial.println(plantSensorData.timestamp);
   
   // Print sensor readings
-  Serial.print("HTS221 temp: "); Serial.println(HTS_temp.temperature);
-  Serial.print("HTS221 hum: "); Serial.println(HTS_humidity.relative_humidity);
-  Serial.print("SS temp: "); Serial.println(ssTempC);
-  Serial.print("SS moist: "); Serial.println(ssMoist);
-  Serial.print("BH1750 Lux: "); Serial.println(lux);
+  Serial.print("HTS221 temp: "); Serial.println(plantSensorData.HTS221_temp);
+  Serial.print("HTS221 hum: "); Serial.println(plantSensorData.HTS221_humid);
+  Serial.print("SS temp: "); Serial.println(plantSensorData.soil_temp);
+  Serial.print("SS moist: "); Serial.println(plantSensorData.soil_humid);
+  Serial.print("BH1750 Lux: "); Serial.println(plantSensorData.BH1750_light);
+  Serial.print("VPD: "); Serial.println(plantSensorData.VPD);
+  Serial.print("\n");
 }
 
 void initializeSD(int pinSD) {
@@ -156,8 +159,8 @@ void initializeSD(int pinSD) {
 
   if (!SD.begin(pinSD)) {
     // Serial.println("initialization failed!");
-    lcd.clear();
-    lcd.print("Wait SD...");
+    //lcd.clear();
+    //lcd.print("Wait SD...");
     blinkWithDelay(1000);
     delay(5000);
     initializeSD(SD_PIN);
@@ -187,25 +190,41 @@ void logHeader() {
   logFile = SD.open(SDFileName, FILE_WRITE);
 
   // Log headers for each data entry
-  logFile.print("Timestamp");
-  logFile.print("\t");
-  logFile.print("HTS221_Temp");
-  logFile.print("\t");
-  logFile.print("HTS221_Hum");
-  logFile.print("\t");
-  logFile.print("SS_Temp");
-  logFile.print("\t");
-  logFile.print("SS_Moist");
-  logFile.print("\t");
-  logFile.print("BH1750_Lux");
-  logFile.print("\t");
-  logFile.print("VPD");
-  logFile.print("\n");
+  logFile.print("Timestamp");   logFile.print("\t");
+  logFile.print("HTS221_Temp"); logFile.print("\t");
+  logFile.print("HTS221_Hum");  logFile.print("\t");
+  logFile.print("SS_Temp");     logFile.print("\t");
+  logFile.print("SS_Moist");    logFile.print("\t");
+  logFile.print("BH1750_Lux");  logFile.print("\t");
+  logFile.print("VPD");         logFile.print("\n");
   logFile.close();
 }
 
 void logSensorData() {
   // Log sensor data for each data entry
+  populateSensorData();
+  
+  // Using local file variable to log to
+  File logFile;
+
+  // Open log file with formatted file name assigned in assignFileName
+  logFile = SD.open(SDFileName, FILE_WRITE);
+
+  // Print datetime
+  logFile.print(plantSensorData.timestamp);     logFile.print("\t");
+  
+  // Print sensor readings
+  logFile.print(plantSensorData.HTS221_temp);   logFile.print("\t");
+  logFile.print(plantSensorData.HTS221_humid);  logFile.print("\t");
+  logFile.print(plantSensorData.soil_temp);     logFile.print("\t");
+  logFile.print(plantSensorData.soil_humid);    logFile.print("\t");
+  logFile.print(plantSensorData.BH1750_light);  logFile.print("\t");
+  logFile.print(plantSensorData.VPD);           logFile.print("\n");
+  
+  logFile.close();
+}
+
+void populateSensorData() {
   // Get temperature and humidity readings from HTS221 sensor
   sensors_event_t HTS_temp;
   sensors_event_t HTS_humidity;
@@ -224,31 +243,14 @@ void logSensorData() {
   dateTimeStamp.concat(rtc.getDateStr(FORMAT_LONG,FORMAT_MIDDLEENDIAN,'/'));
   dateTimeStamp.concat(" ");
   dateTimeStamp.concat(rtc.getTimeStr());
-  
-  // Using local file variable to log to
-  File logFile;
 
-  // Open log file with formatted file name assigned in assignFileName
-  logFile = SD.open(SDFileName, FILE_WRITE);
-
-  // Print datetime
-  logFile.print(dateTimeStamp);
-  logFile.print("\t");
-  
-  // Print sensor readings
-  logFile.print(HTS_temp.temperature);
-  logFile.print("\t");
-  logFile.print(HTS_humidity.relative_humidity);
-  logFile.print("\t");
-  logFile.print(ssTempC);
-  logFile.print("\t");
-  logFile.print(ssMoist);
-  logFile.print("\t");
-  logFile.print(lux);
-  logFile.print("\t");
-  logFile.print(calcVPD(HTS_temp.temperature, HTS_humidity.relative_humidity));
-  logFile.print("\n");
-  logFile.close();
+  plantSensorData.timestamp = dateTimeStamp;
+  plantSensorData.HTS221_temp = HTS_temp.temperature;
+  plantSensorData.HTS221_humid = HTS_humidity.relative_humidity;
+  plantSensorData.soil_temp = ssTempC;
+  plantSensorData.soil_humid = ssMoist;
+  plantSensorData.BH1750_light = lux;
+  plantSensorData.VPD = calcVPD(HTS_temp.temperature, HTS_humidity.relative_humidity);
 }
 
 // Return vapor pressure deficit to air
