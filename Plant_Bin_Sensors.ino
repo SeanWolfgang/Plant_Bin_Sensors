@@ -114,6 +114,8 @@ void loop() {
   //lcd.setCursor(0, 1);
   // print the number of seconds since reset:
   //lcd.print(upTime());
+
+  //serialPrintSensors();
   
   logSensorData();
   
@@ -256,7 +258,10 @@ void populateSensorData() {
 // Return vapor pressure deficit to air
 float calcVPD(float temp, float hum) {
   // Calculation from: https://betterorganix.com/blog/what-is-how-to-calculate-vapour-pressure-deficit/#:~:text=To%20Get%20VPD%2C%20we%20need,And%20VOILA%2C%20you%20have%20VPD.
-  return ((610.7 * pow(10, (7.5 * temp) / (237.3 + temp))) / 1000) * (hum / 100);
+  float VPsat = ((610.7 * pow(10, (7.5 * temp) / (237.3 + temp))) / 1000);
+  float VPair =  VPsat * (hum / 100);
+  
+  return VPsat - VPair;
 }
 
 String upTime() {
